@@ -70,7 +70,7 @@ try
     if (!string.IsNullOrEmpty(lambdaPackagePath) && File.Exists(lambdaPackagePath))
     {
         logger.LogInformation("Uploading Lambda package from {Path}...", lambdaPackagePath);
-        s3Bucket = await deployer.UploadLambdaPackageAsync(lambdaPackagePath, fullStackName, lambdaS3Key, region);
+        s3Bucket = await deployer.UploadLambdaPackageAsync(lambdaPackagePath, fullStackName, lambdaS3Key, region, environment);
         logger.LogInformation("Lambda package uploaded to s3://{Bucket}/{Key}", s3Bucket, lambdaS3Key);
     }
 

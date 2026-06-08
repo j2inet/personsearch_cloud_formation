@@ -35,7 +35,8 @@ public class PersonSearchService
             throw new ArgumentException("At least one of firstName or lastName must be provided.");
 
         if (maxResults <= 0 || maxResults > 200)
-            maxResults = 50;
+            throw new ArgumentOutOfRangeException(nameof(maxResults),
+                maxResults, "maxResults must be between 1 and 200 inclusive.");
 
         var firstNamePattern = $"%{firstName.Trim()}%";
         var lastNamePattern = $"%{lastName.Trim()}%";

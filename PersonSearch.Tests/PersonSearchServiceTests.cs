@@ -22,15 +22,15 @@ public class PersonSearchServiceTests
     [InlineData(0)]
     [InlineData(-5)]
     [InlineData(201)]
-    public async Task SearchAsync_ThrowsArgumentException_WhenBothNamesEmptyAndMaxResultsOutOfRange(int maxResults)
+    public async Task SearchAsync_ThrowsArgumentOutOfRangeException_WhenMaxResultsOutOfRange(int maxResults)
     {
         var service = new PersonSearchService(
             new NeverCalledConnectionFactory(),
             NullLogger<PersonSearchService>.Instance);
 
-        // Both names empty → should throw before evaluating maxResults
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => service.SearchAsync("", "", maxResults));
+        // At least one name is provided so that only maxResults validation fires
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => service.SearchAsync("John", "Smith", maxResults));
     }
 
     /// <summary>

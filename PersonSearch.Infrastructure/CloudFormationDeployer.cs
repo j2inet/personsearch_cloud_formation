@@ -24,17 +24,20 @@ public class CloudFormationDeployer
 
     /// <summary>
     /// Uploads the Lambda deployment package to S3 and returns the bucket name.
+    /// The bucket name follows the same pattern as the CloudFormation template:
+    /// <c>personsearch-lambda-{accountId}-{environment}</c>.
     /// </summary>
     public async Task<string> UploadLambdaPackageAsync(
-        string packagePath, string stackName, string s3Key, string region)
+        string packagePath, string stackName, string s3Key, string region, string environment)
     {
         var regionEndpoint = RegionEndpoint.GetBySystemName(region);
         using var s3Client = new AmazonS3Client(regionEndpoint);
 
-        // Derive a deterministic bucket name from the stack and account
+        // Derive a deterministic bucket name matching the CloudFormation template pattern:
+        // AWS::S3::Bucket BucketName: personsearch-lambda-${AWS::AccountId}-${Environment}
         var sts = new Amazon.SecurityToken.AmazonSecurityTokenServiceClient(regionEndpoint);
         var identity = await sts.GetCallerIdentityAsync(new Amazon.SecurityToken.Model.GetCallerIdentityRequest());
-        var bucketName = $"personsearch-lambda-{identity.Account}-{region}";
+        var bucketName = $"personsearch-lambda-{identity.Account}-{environment}";
 
         // Create the bucket if it does not exist
         try

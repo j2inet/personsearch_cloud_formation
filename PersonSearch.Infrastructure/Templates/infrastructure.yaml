@@ -1,0 +1,172 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  PersonSearch infrastructure: Aurora DSQL cluster, Lambda function for person
+  search by similar first/last name, supporting IAM roles, and a Lambda function URL.
+
+# ── Parameters ────────────────────────────────────────────────────────────────
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment name used as a suffix on all resource names.
+
+  LambdaS3Bucket:
+    Type: String
+    Description: >
+      S3 bucket that holds the Lambda deployment package.
+      Leave empty when first creating the stack (the bucket is created by this template).
+    Default: ''
+
+  LambdaS3Key:
+    Type: String
+    Default: PersonSearch.Lambda.zip
+    Description: S3 object key for the Lambda deployment package.
+
+Conditions:
+  HasLambdaPackage: !Not [!Equals [!Ref LambdaS3Bucket, '']]
+
+# ── Resources ─────────────────────────────────────────────────────────────────
+Resources:
+
+  # ── Aurora DSQL Cluster ───────────────────────────────────────────────────
+  PersonSearchDsqlCluster:
+    Type: AWS::DSQL::Cluster
+    Properties:
+      DeletionProtectionEnabled: false
+      Tags:
+        - Key: Application
+          Value: PersonSearch
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── S3 Bucket for Lambda deployment packages ──────────────────────────────
+  LambdaDeploymentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'personsearch-lambda-${AWS::AccountId}-${Environment}'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Application
+          Value: PersonSearch
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── IAM Role for the Lambda function ─────────────────────────────────────
+  PersonSearchLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'PersonSearchLambdaRole-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DsqlConnectPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowDsqlConnect
+                Effect: Allow
+                Action:
+                  - dsql:DbConnect
+                Resource: !GetAtt PersonSearchDsqlCluster.ResourceArn
+        - PolicyName: XRayPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowXRay
+                Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: '*'
+
+  # ── Lambda Function ───────────────────────────────────────────────────────
+  PersonSearchFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'PersonSearch-${Environment}'
+      Runtime: dotnet8
+      Handler: PersonSearch.Lambda::PersonSearch.Lambda.Function::FunctionHandler
+      Role: !GetAtt PersonSearchLambdaRole.Arn
+      Code:
+        !If
+          - HasLambdaPackage
+          - S3Bucket: !Ref LambdaS3Bucket
+            S3Key: !Ref LambdaS3Key
+          - ZipFile: |
+              # placeholder – deploy the real package after the first stack creation
+              exports.handler = async () => ({ statusCode: 200, body: 'placeholder' });
+      Environment:
+        Variables:
+          DSQL_ENDPOINT: !GetAtt PersonSearchDsqlCluster.Endpoint
+          DSQL_CLUSTER_ARN: !GetAtt PersonSearchDsqlCluster.ResourceArn
+          AWS_REGION_NAME: !Ref AWS::Region
+      Timeout: 30
+      MemorySize: 512
+      TracingConfig:
+        Mode: Active
+      Tags:
+        - Key: Application
+          Value: PersonSearch
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── Lambda permission so Function URLs can invoke it ──────────────────────
+  PersonSearchFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PersonSearchFunction.Arn
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: AWS_IAM
+
+  # ── Lambda Function URL ───────────────────────────────────────────────────
+  PersonSearchFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      AuthType: AWS_IAM
+      TargetFunctionArn: !GetAtt PersonSearchFunction.Arn
+
+# ── Outputs ───────────────────────────────────────────────────────────────────
+Outputs:
+  DsqlClusterEndpoint:
+    Description: Endpoint hostname for the Aurora DSQL cluster.
+    Value: !GetAtt PersonSearchDsqlCluster.Endpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-DsqlEndpoint'
+
+  DsqlClusterArn:
+    Description: ARN of the Aurora DSQL cluster.
+    Value: !GetAtt PersonSearchDsqlCluster.ResourceArn
+    Export:
+      Name: !Sub '${AWS::StackName}-DsqlArn'
+
+  PersonSearchFunctionArn:
+    Description: ARN of the PersonSearch Lambda function.
+    Value: !GetAtt PersonSearchFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaArn'
+
+  PersonSearchFunctionUrl:
+    Description: Invocation URL for the PersonSearch Lambda function.
+    Value: !GetAtt PersonSearchFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub '${AWS::StackName}-FunctionUrl'
+
+  LambdaDeploymentBucketName:
+    Description: S3 bucket used for Lambda deployment packages.
+    Value: !Ref LambdaDeploymentBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaBucket'

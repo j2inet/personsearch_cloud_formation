@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PersonSearch.Lambda</RootNamespace>
+    <AssemblyName>PersonSearch.Lambda</AssemblyName>
+    <!-- Required for AWS Lambda packaging -->
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <AWSProjectType>Lambda</AWSProjectType>
+    <!-- Disable trimming/AOT for Npgsql compatibility -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Amazon.Lambda.Core" Version="3.1.*" />
+    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="3.0.*" />
+    <PackageReference Include="AWSSDK.DSQL" Version="4.0.*" />
+    <PackageReference Include="Amazon.AuroraDsql.Npgsql" Version="1.1.*" />
+    <PackageReference Include="Npgsql" Version="10.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.*" />
+  </ItemGroup>
+
+</Project>
